@@ -21,7 +21,8 @@ import { toast } from 'react-hot-toast';
 import BulkStudentImport from '../components/BulkStudentImport';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { Student, studentService } from '../services/studentService';
-import { DEPARTMENTS, Department } from '../config/api';
+import { apiUrl, DEPARTMENTS, Department } from '../config/api';
+import { HttpTimeoutError } from '../utils/http';
 
 interface StudentFormData {
   ienNumber: string;
@@ -221,6 +222,10 @@ const StudentModal: React.FC<{
 const StudentManagement: React.FC = () => {
   const [students, setStudents] = useState<Student[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(0);
+  const [pageSize, setPageSize] = useState(25);
+  const [totalElements, setTotalElements] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showFaceCapture, setShowFaceCapture] = useState(false);
@@ -229,6 +234,7 @@ const StudentManagement: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState<Department | ''>('');
   const [filterYear, setFilterYear] = useState<number | ''>('');
+  const [loadError, setLoadError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<StudentFormData>({
     ienNumber: '',
@@ -249,19 +255,42 @@ const StudentManagement: React.FC = () => {
 
   // Load students
   useEffect(() => {
-    loadStudents();
-  }, []);
+    // Debounce query updates so we don't hammer the backend while typing.
+    const t = window.setTimeout(() => {
+      loadStudents();
+    }, 300);
+    return () => window.clearTimeout(t);
+  }, [page, pageSize, searchTerm, filterDepartment, filterYear]);
+
+  // Reset pagination when filters change.
+  useEffect(() => {
+    setPage(0);
+  }, [searchTerm, filterDepartment, filterYear]);
 
   const loadStudents = async () => {
     try {
       setIsLoading(true);
-      // Force refresh with timestamp to avoid caching
-      const response = await studentService.getAllStudents({ size: 100 });
-      console.log('🔄 Loaded students:', response.content);
+      setLoadError(null);
+      const response = await studentService.getAllStudents({
+        page,
+        size: pageSize,
+        q: searchTerm.trim() ? searchTerm.trim() : undefined,
+        department: filterDepartment || undefined,
+        year: typeof filterYear === 'number' ? filterYear : undefined,
+        sortBy: 'createdAt',
+        sortDir: 'desc',
+      });
+
       setStudents(response.content);
+      setTotalElements(response.totalElements || 0);
+      setTotalPages(response.totalPages || 0);
     } catch (error: any) {
       console.error('❌ Failed to load students:', error);
-      toast.error('Failed to load students');
+      const message = error instanceof HttpTimeoutError
+        ? error.message
+        : error?.message || 'Failed to load students';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -277,7 +306,7 @@ const StudentManagement: React.FC = () => {
       console.log('🔍 Main form sending student:', studentData);
       
       // Use direct fetch like the debug component
-      const response = await fetch('http://localhost:8080/api/students', {
+      const response = await fetch(apiUrl("/students"), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(studentData)
@@ -385,7 +414,7 @@ const StudentManagement: React.FC = () => {
     if (!selectedStudent) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/students/${selectedStudent.id}/face-enrollment`, {
+      const response = await fetch(apiUrl(`/students/${selectedStudent.id}/face-enrollment`), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -423,7 +452,7 @@ const StudentManagement: React.FC = () => {
     if (!confirmRemove) return;
 
     try {
-      const response = await fetch(`http://localhost:8080/api/students/${student.id}/remove-face`, {
+      const response = await fetch(apiUrl(`/students/${student.id}/remove-face`), {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' }
       });
@@ -442,20 +471,7 @@ const StudentManagement: React.FC = () => {
     }
   };
 
-  // Filter students
-  const filteredStudents = students.filter(student => {
-    const matchesSearch = 
-      student.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.ienNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.rollNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      student.email.toLowerCase().includes(searchTerm.toLowerCase());
-    
-    const matchesDepartment = !filterDepartment || student.department === filterDepartment;
-    const matchesYear = !filterYear || student.year === filterYear;
-    
-    return matchesSearch && matchesDepartment && matchesYear;
-  });
+  const filteredStudents = students;
 
   return (
     <div className="space-y-6">
@@ -499,6 +515,23 @@ const StudentManagement: React.FC = () => {
       </div>
 
       {/* Filters */}
+      {loadError && (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 dark:border-amber-800 dark:bg-amber-900/20 dark:text-amber-200">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="font-semibold">Student records are taking longer than expected</p>
+              <p>{loadError}</p>
+            </div>
+            <button
+              onClick={loadStudents}
+              className="shrink-0 rounded-lg bg-amber-100 px-3 py-1.5 text-xs font-medium text-amber-900 transition-colors hover:bg-amber-200 dark:bg-amber-800/50 dark:text-amber-100 dark:hover:bg-amber-800"
+            >
+              Try again
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center space-x-4 p-4 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
         <div className="flex-1">
           <div className="relative">
@@ -532,16 +565,45 @@ const StudentManagement: React.FC = () => {
             <option key={year} value={year}>Year {year}</option>
           ))}
         </select>
-        <span className="text-sm text-gray-500 dark:text-gray-400">
-          {filteredStudents.length} students
-        </span>
+        <div className="flex items-center space-x-3">
+          <span className="text-sm text-gray-500 dark:text-gray-400">
+            {totalElements} students
+          </span>
+          <select
+            value={pageSize}
+            onChange={(e) => setPageSize(parseInt(e.target.value))}
+            className="px-2 py-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm"
+            title="Rows per page"
+          >
+            {[10, 25, 50, 100].map((size) => (
+              <option key={size} value={size}>
+                {size}/page
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {/* Students Table */}
       <div className="bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700 overflow-hidden">
         {isLoading ? (
           <div className="flex items-center justify-center py-12">
-            <LoadingSpinner size="lg" />
+            <div className="text-center">
+              <LoadingSpinner size="lg" />
+              <p className="mt-4 text-sm text-gray-500 dark:text-gray-400">
+                Loading student records...
+              </p>
+            </div>
+          </div>
+        ) : filteredStudents.length === 0 ? (
+          <div className="px-6 py-12 text-center">
+            <Users className="mx-auto mb-3 h-10 w-10 text-gray-300 dark:text-gray-600" />
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              No students to show
+            </h3>
+            <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+              {loadError ? 'The list could not be loaded from the backend yet.' : 'Add your first student or adjust the filters.'}
+            </p>
           </div>
         ) : (
           <div className="overflow-x-auto">
@@ -660,6 +722,28 @@ const StudentManagement: React.FC = () => {
                 ))}
               </tbody>
             </table>
+
+            <div className="flex items-center justify-between px-6 py-4 border-t border-gray-200 dark:border-gray-700">
+              <div className="text-sm text-gray-500 dark:text-gray-400">
+                Page {totalPages === 0 ? 0 : page + 1} of {totalPages}
+              </div>
+              <div className="flex items-center space-x-2">
+                <button
+                  onClick={() => setPage((p) => Math.max(0, p - 1))}
+                  disabled={page <= 0 || isLoading}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Prev
+                </button>
+                <button
+                  onClick={() => setPage((p) => Math.min(Math.max(0, totalPages - 1), p + 1))}
+                  disabled={isLoading || totalPages === 0 || page >= totalPages - 1}
+                  className="px-3 py-2 rounded-lg border border-gray-300 dark:border-gray-600 text-sm text-gray-700 dark:text-gray-300 disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 dark:hover:bg-gray-700"
+                >
+                  Next
+                </button>
+              </div>
+            </div>
           </div>
         )}
       </div>

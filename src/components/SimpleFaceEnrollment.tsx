@@ -1,3 +1,4 @@
+import { apiUrl } from '../config/api';
 import React, { useState, useRef, useEffect } from 'react';
 import { Camera, CheckCircle, XCircle, User } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -22,8 +23,8 @@ const SimpleFaceEnrollment: React.FC<Props> = ({ onClose, onComplete }) => {
   const [currentQuality, setCurrentQuality] = useState<any>(null);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const REQUIRED_SAMPLES = 5; // Increased from 3 to 5 for better quality
-  const MIN_QUALITY_SCORE = 0.90; // Ultra-strict: 90% quality required
+  const REQUIRED_SAMPLES = 5; // Keep enough samples for a stable averaged descriptor
+  const MIN_QUALITY_SCORE = 0.80; // Balanced threshold so enrollment actually completes
 
   useEffect(() => {
     initialize();
@@ -47,7 +48,7 @@ const SimpleFaceEnrollment: React.FC<Props> = ({ onClose, onComplete }) => {
     // Load students
     try {
       console.log('📡 Fetching students from API...');
-      const response = await fetch('http://localhost:8080/api/students');
+      const response = await fetch(apiUrl("/students"));
       console.log('📡 Response status:', response.status);
       
       const data = await response.json();
@@ -128,7 +129,7 @@ const SimpleFaceEnrollment: React.FC<Props> = ({ onClose, onComplete }) => {
         // Get face box for visual feedback
         drawOverlay(result.quality, result.box);
 
-        // Stricter quality check - must be above MIN_QUALITY_SCORE
+        // Quality check - must be above MIN_QUALITY_SCORE
         const isHighQuality = result.quality.score >= MIN_QUALITY_SCORE;
         
         if (isHighQuality && samples.length < REQUIRED_SAMPLES) {
@@ -149,7 +150,7 @@ const SimpleFaceEnrollment: React.FC<Props> = ({ onClose, onComplete }) => {
           return;
         } else if (!isHighQuality) {
           const qualityPercent = (result.quality.score * 100).toFixed(0);
-          setStatus(`⚠️ Quality: ${qualityPercent}% (need 90%+) - ${result.quality.reason}`);
+          setStatus(`⚠️ Quality: ${qualityPercent}% (need 80%+) - ${result.quality.reason}`);
         }
       } else {
         setCurrentQuality(null);

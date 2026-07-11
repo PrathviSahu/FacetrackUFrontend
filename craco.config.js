@@ -8,7 +8,7 @@ module.exports = {
         "path": false,
         "os": false
       };
-      
+
       // Disable ESLint during build
       webpackConfig.module.rules = webpackConfig.module.rules.map(rule => {
         if (rule.use && rule.use.includes('eslint-loader')) {
@@ -32,7 +32,7 @@ module.exports = {
         }
         return rule;
       });
-      
+
       return webpackConfig;
     }
   }

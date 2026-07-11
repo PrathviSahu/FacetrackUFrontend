@@ -1,7 +1,29 @@
 // API Configuration
+const isLocalDevelopment =
+  typeof window !== 'undefined' &&
+  (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
+
+export const API_BASE_URL = (
+  process.env.REACT_APP_API_URL ||
+  (isLocalDevelopment ? 'http://localhost:8080/api' : 'https://facetrackubackend.onrender.com/api')
+).replace(/\/+$/, '');
+
+export const apiUrl = (path: string = ''): string => {
+  if (!path) {
+    return API_BASE_URL;
+  }
+  const normalizedPath = path.startsWith('/') ? path : `/${path}`;
+  return `${API_BASE_URL}${normalizedPath}`;
+};
+
 export const API_CONFIG = {
-  BASE_URL: process.env.REACT_APP_API_URL || 'http://localhost:8080/api',
-  TIMEOUT: 10000,
+  BASE_URL: API_BASE_URL,
+  // Render free tier can take ~50s to wake from sleep. Default higher to avoid false "disconnected" states.
+  TIMEOUT: (() => {
+    const raw = process.env.REACT_APP_API_TIMEOUT_MS;
+    const parsed = raw ? parseInt(raw, 10) : NaN;
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 60000;
+  })(),
   RETRY_ATTEMPTS: 3,
 };
 

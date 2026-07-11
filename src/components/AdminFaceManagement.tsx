@@ -1,3 +1,4 @@
+import { apiUrl } from '../config/api';
 import React, { useState, useEffect } from 'react';
 import { Users, Trash2, RotateCcw, Download, Upload, Search, Filter, Eye, AlertTriangle, CheckCircle } from 'lucide-react';
 import { toast } from 'react-hot-toast';
@@ -41,17 +42,31 @@ const AdminFaceManagement: React.FC<AdminFaceManagementProps> = ({ onClose }) =>
   const loadStudentData = async () => {
     try {
       setLoading(true);
-      
-      // Get all students from backend
-      const response = await fetch('http://localhost:8080/api/students');
-      if (response.ok) {
-        const data = await response.json();
-        if (data.success && Array.isArray(data.data)) {
-          setStudents(data.data);
-          console.log(`📊 Loaded ${data.data.length} students for face management`);
-        }
-      } else {
+
+      const [studentsResponse, enrolledResponse] = await Promise.all([
+        fetch(apiUrl("/students?size=1000")),
+        fetch(apiUrl("/students/enrolled-faces"))
+      ]);
+
+      if (!studentsResponse.ok || !enrolledResponse.ok) {
         throw new Error('Failed to fetch students');
+      }
+
+      const studentsData = await studentsResponse.json();
+      const enrolledData = await enrolledResponse.json();
+
+      if (studentsData.success && Array.isArray(studentsData.data?.content)) {
+        const enrolledById = new Map(
+          ((enrolledData.success && Array.isArray(enrolledData.data)) ? enrolledData.data : []).map((student: any) => [String(student.id), student])
+        );
+
+        const mergedStudents = studentsData.data.content.map((student: any) => ({
+          ...student,
+          ...(enrolledById.get(String(student.id)) || {}),
+        }));
+
+        setStudents(mergedStudents);
+        console.log(`📊 Loaded ${mergedStudents.length} students for face management`);
       }
     } catch (error) {
       console.error('❌ Error loading student data:', error);
@@ -115,7 +130,7 @@ const AdminFaceManagement: React.FC<AdminFaceManagementProps> = ({ onClose }) =>
           
           // Also delete from backend
           try {
-            await fetch(`http://localhost:8080/api/students/${studentId}/face-enrollment`, {
+            await fetch(apiUrl(`/students/${studentId}/face-enrollment`), {
               method: 'DELETE'
             });
           } catch (error) {
