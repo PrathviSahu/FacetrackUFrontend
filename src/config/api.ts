@@ -4,8 +4,9 @@ const isLocalDevelopment =
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
 export const API_BASE_URL = (
-  process.env.REACT_APP_API_URL ||
-  (isLocalDevelopment ? 'http://localhost:8080/api' : 'https://facetrackubackend.onrender.com/api')
+  isLocalDevelopment 
+    ? 'http://localhost:8080/api' 
+    : 'https://facetrackubackend.onrender.com/api'
 ).replace(/\/+$/, '');
 
 export const apiUrl = (path: string = ''): string => {
