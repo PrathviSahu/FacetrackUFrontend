@@ -26,12 +26,16 @@ const ProfessionalReports: React.FC = () => {
       setIsGenerating(true);
       let url = '';
       
+      let filename = `FaceTrackU_Report_${type}_${new Date().getTime()}`;
+
       switch (type) {
         case 'comprehensive':
           url = apiUrl(`/reports/excel/comprehensive?department=${selectedDepartment}&startDate=${startDate}&endDate=${endDate}`);
+          filename += '.xlsx';
           break;
         case 'summary':
           url = apiUrl("/reports/excel/summary");
+          filename += '.xlsx';
           break;
         case 'department':
           if (!selectedDepartment) {
@@ -40,6 +44,15 @@ const ProfessionalReports: React.FC = () => {
             return;
           }
           url = apiUrl(`/reports/excel/department/${selectedDepartment}`);
+          filename += '.xlsx';
+          break;
+        case 'csv-attendance':
+          url = apiUrl(`/reports/csv/attendance${selectedDepartment ? '?department=' + selectedDepartment : ''}`);
+          filename += '.csv';
+          break;
+        case 'csv-students':
+          url = apiUrl(`/reports/csv/students${selectedDepartment ? '?department=' + selectedDepartment : ''}`);
+          filename += '.csv';
           break;
       }
 
@@ -53,7 +66,7 @@ const ProfessionalReports: React.FC = () => {
       const downloadUrl = window.URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = downloadUrl;
-      link.download = `FaceTrackU_Report_${type}_${new Date().getTime()}.xlsx`;
+      link.download = filename;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -320,6 +333,66 @@ const ProfessionalReports: React.FC = () => {
             </p>
           )}
         </motion.div>
+
+        {/* CSV Attendance Export */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm"
+        >
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <FileText className="w-6 h-6 text-green-600 dark:text-green-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">CSV – Attendance Export</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Full attendance data for analysis</p>
+            </div>
+          </div>
+          <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-green-500" /><span>Date, time, student, subject, method</span></li>
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-green-500" /><span>Confidence scores per recognition</span></li>
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-green-500" /><span>Excel-compatible UTF-8 encoding</span></li>
+          </ul>
+          <button
+            onClick={() => downloadReport('csv-attendance')}
+            disabled={isGenerating}
+            className="w-full bg-green-500 hover:bg-green-600 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+          >
+            {isGenerating ? <><Loader className="w-4 h-4 animate-spin" /><span>Generating...</span></> : <><Download className="w-4 h-4" /><span>Download CSV</span></>}
+          </button>
+        </motion.div>
+
+        {/* CSV Student List */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.45 }}
+          className="bg-white dark:bg-gray-800 rounded-xl p-6 border border-gray-200 dark:border-gray-700 shadow-sm"
+        >
+          <div className="flex items-center space-x-3 mb-4">
+            <div className="p-2 bg-teal-100 dark:bg-teal-900/30 rounded-lg">
+              <Building2 className="w-6 h-6 text-teal-600 dark:text-teal-400" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-gray-900 dark:text-white">CSV – Student List</h3>
+              <p className="text-sm text-gray-500 dark:text-gray-400">Full student roster with totals</p>
+            </div>
+          </div>
+          <ul className="space-y-1 text-sm text-gray-600 dark:text-gray-400 mb-4">
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-teal-500" /><span>IEN, Roll No, Name, Dept, Year</span></li>
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-teal-500" /><span>Face enrollment status</span></li>
+            <li className="flex items-center space-x-2"><CheckCircle className="w-4 h-4 text-teal-500" /><span>Total attendance per student</span></li>
+          </ul>
+          <button
+            onClick={() => downloadReport('csv-students')}
+            disabled={isGenerating}
+            className="w-full bg-teal-500 hover:bg-teal-600 text-white px-4 py-2 rounded-lg font-medium flex items-center justify-center space-x-2 transition-colors disabled:opacity-50"
+          >
+            {isGenerating ? <><Loader className="w-4 h-4 animate-spin" /><span>Generating...</span></> : <><Download className="w-4 h-4" /><span>Download CSV</span></>}
+          </button>
+        </motion.div>
       </div>
 
       {/* Info Section */}
@@ -347,10 +420,10 @@ const ProfessionalReports: React.FC = () => {
             <h4 className="font-medium text-gray-900 dark:text-white mb-2">Coming Soon:</h4>
             <ul className="space-y-1 text-sm text-gray-700 dark:text-gray-300">
               <li>• PDF exports with charts</li>
-              <li>• CSV format for data analysis</li>
               <li>• Email delivery to faculty</li>
               <li>• Scheduled automatic reports</li>
               <li>• Custom report templates</li>
+              <li>• Per-student attendance certificate PDF</li>
             </ul>
           </div>
         </div>
