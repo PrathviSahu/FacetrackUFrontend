@@ -1,12 +1,18 @@
 // API Configuration
+// Priority: explicit env var > hostname detection
+// Set REACT_APP_API_URL in Vercel dashboard to override
 const isLocalDevelopment =
   typeof window !== 'undefined' &&
   (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1');
 
+const PRODUCTION_API_URL = 'https://facetrackubackend.onrender.com/api';
+
 export const API_BASE_URL = (
-  isLocalDevelopment 
-    ? 'http://localhost:8080/api' 
-    : 'https://facetrackubackend.onrender.com/api'
+  process.env.REACT_APP_API_URL
+    ? process.env.REACT_APP_API_URL
+    : isLocalDevelopment
+      ? 'http://localhost:8080/api'
+      : PRODUCTION_API_URL
 ).replace(/\/+$/, '');
 
 export const apiUrl = (path: string = ''): string => {
